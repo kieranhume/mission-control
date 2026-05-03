@@ -36,7 +36,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ sessions: merged })
   } catch (error) {
     logger.error({ err: error }, 'Sessions API error')
-    return NextResponse.json({ sessions: [] })
+    // Surface error so UI can distinguish 'no sessions' from 'API failed' — was previously silent.
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    return NextResponse.json({ sessions: [], error: errorMessage }, { status: 500 })
   }
 }
 

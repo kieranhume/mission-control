@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useSmartPoll } from '@/lib/use-smart-poll'
+import { useMissionControl } from '@/store'
 
 interface Notification {
   id: number
@@ -21,9 +22,10 @@ interface Notification {
 
 export function NotificationsPanel() {
   const t = useTranslations('notifications')
+  const currentUser = useMissionControl((s) => s.currentUser)
   const [recipient, setRecipient] = useState<string>(() => {
     if (typeof window === 'undefined') return ''
-    return window.localStorage.getItem('mc.notifications.recipient') || ''
+    return window.localStorage.getItem('mc.notifications.recipient') || currentUser?.username || ''
   })
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(false)

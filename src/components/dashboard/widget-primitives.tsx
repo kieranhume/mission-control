@@ -72,6 +72,7 @@ export interface DashboardData {
   claudeHealth: { value: string; status: 'good' | 'warn' | 'bad' }
   codexHealth: { value: string; status: 'good' | 'warn' | 'bad' }
   hermesHealth: { value: string; status: 'good' | 'warn' | 'bad' }
+  ollamaHealth: { value: string; status: 'good' | 'warn' | 'bad' }
   mcHealth: { value: string; status: 'good' | 'warn' | 'bad' }
   gatewayHealthStatus: 'good' | 'bad'
   // Loading states

@@ -145,6 +145,7 @@ export interface Agent {
   updated_at: number
   hidden?: number
   config?: JsonValue
+  kind?: 'worker' | 'brief-agent'
   taskStats?: {
     total: number
     assigned: number
