@@ -133,7 +133,7 @@ export function StandupPanel() {
   // Fetch standup history
   const fetchHistory = async () => {
     try {
-      const response = await fetch('/api/standup/history')
+      const response = await fetch('/api/standup')
       if (!response.ok) throw new Error('Failed to fetch history')
 
       const data = await response.json()

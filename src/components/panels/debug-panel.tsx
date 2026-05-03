@@ -63,7 +63,7 @@ function StatusTab() {
 
   useEffect(() => { fetchStatus() }, [fetchStatus])
 
-  const reachable = data && !data.gatewayReachable === false && data.gatewayReachable !== false
+  const reachable = data?.gatewayReachable === true
 
   return (
     <div>

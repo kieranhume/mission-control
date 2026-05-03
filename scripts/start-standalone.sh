@@ -29,5 +29,14 @@ if [[ -d "$SOURCE_PUBLIC_DIR" ]]; then
   cp -R "$SOURCE_PUBLIC_DIR" "$STANDALONE_PUBLIC_DIR"
 fi
 
+# Defensive: prior next-server children sometimes survive launchctl unload (detached
+# from the bash wrapper). Kill any orphan before binding port to avoid EADDRINUSE
+# crash-loop. See vault Plans/2026-05-04 — MC orphan investigation.
+if command -v pkill >/dev/null 2>&1; then
+  pkill -f "next-server" 2>/dev/null || true
+  # Brief wait so the kernel releases the port before we try to bind
+  sleep 1
+fi
+
 cd "$STANDALONE_DIR"
 exec node server.js

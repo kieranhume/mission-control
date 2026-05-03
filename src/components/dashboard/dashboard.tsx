@@ -141,6 +141,7 @@ export function Dashboard() {
   const claudeLocalSessions = sessions.filter((s) => s.kind === 'claude-code')
   const codexLocalSessions = sessions.filter((s) => s.kind === 'codex-cli')
   const hermesLocalSessions = sessions.filter((s) => s.kind === 'hermes')
+  const ollamaLocalSessions = sessions.filter((s) => s.kind === 'ollama')
   const claudeActive = claudeLocalSessions.filter((s) => s.active).length
   const codexActive = codexLocalSessions.filter((s) => s.active).length
   const hermesActive = hermesLocalSessions.filter((s) => s.active).length
@@ -163,6 +164,10 @@ export function Dashboard() {
   const codexHealth = isSessionsLoading
     ? { value: 'Loading...', status: 'warn' as const }
     : getProviderHealth(codexActive, codexLocalSessions.length)
+  const ollamaActive = ollamaLocalSessions.filter((s) => s.active).length
+  const ollamaHealth = isSessionsLoading
+    ? { value: 'Loading...', status: 'warn' as const }
+    : getProviderHealth(ollamaActive, ollamaLocalSessions.length)
 
   const hermesHealth = isSessionsLoading
     ? { value: 'Loading...', status: 'warn' as const }
@@ -249,6 +254,7 @@ export function Dashboard() {
     claudeHealth,
     codexHealth,
     hermesHealth,
+    ollamaHealth,
     mcHealth,
     gatewayHealthStatus,
     isSystemLoading,
@@ -272,7 +278,7 @@ export function Dashboard() {
             </h2>
             <p className="text-xs text-muted-foreground">
               {isLocal
-                ? 'Unified visibility for Claude, Codex & Hermes local sessions, host pressure, and operator continuity.'
+                ? 'Unified visibility for Claude & Ollama local sessions, host pressure, and operator continuity.'
                 : 'Gateway-first health, session routing, queue pressure, and incident response signals.'}
             </p>
           </div>
