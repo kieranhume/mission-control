@@ -9,7 +9,7 @@ import { SessionKindAvatar, SessionKindPill } from './session-kind-brand'
 
 const log = createClientLogger('ConversationList')
 
-type SessionKind = 'claude-code' | 'codex-cli' | 'hermes' | 'opencode' | 'gateway'
+type SessionKind = 'claude-code' | 'gateway'
 
 type SessionRecord = {
   id: string
@@ -265,18 +265,12 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
           const updatedAt = lastActivityMs > 1_000_000_000_000
             ? Math.floor(lastActivityMs / 1000)
             : lastActivityMs
-          const sessionKind: SessionKind = s.kind === 'claude-code' || s.kind === 'codex-cli' || s.kind === 'hermes' || s.kind === 'opencode'
+          const sessionKind: SessionKind = s.kind === 'claude-code'
             ? s.kind
             : 'gateway'
-          const kindLabel = sessionKind === 'codex-cli'
-            ? 'Codex'
-            : sessionKind === 'claude-code'
-              ? 'Claude'
-              : sessionKind === 'hermes'
-                ? 'Hermes'
-                : sessionKind === 'opencode'
-                  ? 'OpenCode'
-                : 'Gateway'
+          const kindLabel = sessionKind === 'claude-code'
+            ? 'Claude'
+            : 'Gateway'
           const prefKey = `${sessionKind}:${s.id}`
           const pref = prefs[prefKey] || {}
           const defaultName = s.source === 'local'
@@ -352,9 +346,12 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
     )
   })
 
-  const allSessions = filteredConversations.filter((c) => c.source === 'session')
-  const activeRows = allSessions.filter((c) => c.session?.active)
-  const recentRows = allSessions.filter((c) => !c.session?.active)
+  const gatewayRows = filteredConversations.filter((c) => c.source === 'session' && c.session?.sessionKind === 'gateway')
+  const activeGatewayRows = gatewayRows.filter((c) => c.session?.active)
+  const inactiveGatewayRows = gatewayRows.filter((c) => !c.session?.active)
+  const localRows = filteredConversations.filter((c) => c.source === 'session' && c.session?.sessionKind === 'claude-code')
+  const activeLocalRows = localRows.filter((c) => c.session?.active)
+  const inactiveLocalRows = localRows.filter((c) => !c.session?.active)
 
   function renderConversationItem(conv: Conversation) {
     const displayName = conv.name || conv.id.replace('agent_', '')

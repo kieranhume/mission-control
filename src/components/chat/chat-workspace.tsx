@@ -890,9 +890,6 @@ function AgentAvatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }
 function getConversationStatus(agents: Array<{ name: string; status: string }>, conversationId: string): string {
   if (conversationId.startsWith('session:')) {
     if (conversationId.includes('claude-code')) return 'Local Claude session'
-    if (conversationId.includes('codex-cli')) return 'Local Codex session'
-    if (conversationId.includes('hermes')) return 'Local Hermes session'
-    if (conversationId.includes('opencode')) return 'Local OpenCode session'
     return 'Gateway session'
   }
   const name = conversationId.replace('agent_', '')

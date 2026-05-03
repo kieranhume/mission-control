@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useSmartPoll } from '@/lib/use-smart-poll'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
@@ -78,8 +79,6 @@ interface TaskCostsResponse {
   unattributed: TokenStats
   timeframe: string
 }
-
-const REFRESH_INTERVAL = 30_000 // 30s auto-refresh
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#ff6b6b']
 
@@ -279,7 +278,6 @@ export function AgentCostPanel() {
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null)
   const [expandedSection, setExpandedSection] = useState<'models' | 'tasks'>('tasks')
   const [activeView, setActiveView] = useState<'overview' | 'per-agent'>('overview')
-  const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Map timeframe to days param for the by-agent endpoint
   const timeframeToDays = (tf: string): number => {
@@ -313,13 +311,8 @@ export function AgentCostPanel() {
     }
   }, [selectedTimeframe])
 
-  useEffect(() => { loadData() }, [loadData])
-
-  // Auto-refresh every 30s
-  useEffect(() => {
-    refreshTimer.current = setInterval(loadData, REFRESH_INTERVAL)
-    return () => { if (refreshTimer.current) clearInterval(refreshTimer.current) }
-  }, [loadData])
+  // Auto-refresh every 30s; pauses when tab hidden or SSE delivers updates
+  useSmartPoll(loadData, 30000, { pauseWhenSseConnected: true })
 
   // Helper: get tasks for a specific agent from task-costs data
   const getAgentTasks = useCallback((agentName: string): TaskCostEntry[] => {
