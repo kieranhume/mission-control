@@ -33,7 +33,7 @@ fi
 # from the bash wrapper). Kill any orphan before binding port to avoid EADDRINUSE
 # crash-loop. See vault Plans/2026-05-04 — MC orphan investigation.
 if command -v pkill >/dev/null 2>&1; then
-  pkill -f "next-server" 2>/dev/null || true
+  pkill -9 -f "next-server" 2>/dev/null || true
   # Brief wait so the kernel releases the port before we try to bind
   sleep 1
 fi
