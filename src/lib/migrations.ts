@@ -1262,6 +1262,19 @@ const migrations: Migration[] = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_gateway_health_logs_gateway_id ON gateway_health_logs(gateway_id)`)
       db.exec(`CREATE INDEX IF NOT EXISTS idx_gateway_health_logs_probed_at ON gateway_health_logs(probed_at)`)
     }
+  },
+  {
+    id: '042_agents_kind',
+    up(db: Database.Database) {
+      // Brief-Agent MVP: discriminator column so future views can synthesise
+      // brief-agent rows from recurring task templates alongside worker rows.
+      // Existing 9 rows keep default 'worker'.
+      const cols = db.prepare(`PRAGMA table_info(agents)`).all() as Array<{ name: string }>
+      if (!cols.some(c => c.name === 'kind')) {
+        db.exec(`ALTER TABLE agents ADD COLUMN kind TEXT NOT NULL DEFAULT 'worker'`)
+      }
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_agents_kind ON agents(kind)`)
+    }
   }
 ]
 
