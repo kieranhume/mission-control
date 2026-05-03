@@ -1428,26 +1428,15 @@ const migrations: Migration[] = [
       db.exec(`ALTER TABLE mcp_call_log ADD COLUMN signature TEXT DEFAULT NULL`)
       db.exec(`ALTER TABLE mcp_call_log ADD COLUMN public_key TEXT DEFAULT NULL`)
     }
+  },
+  {
+    id: '051_agents_kind',
+    up(db: Database.Database) {
+      const cols = db.prepare(`PRAGMA table_info(agents)`).all() as Array<{ name: string }>
+      if (!cols.some(c => c.name === 'kind')) {
+        db.exec(`ALTER TABLE agents ADD COLUMN kind TEXT NOT NULL DEFAULT 'worker'`)
+      }
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_agents_kind ON agents(kind)`)
+    }
   }
 ]
-
-export function runMigrations(db: Database.Database) {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS schema_migrations (
-      id TEXT PRIMARY KEY,
-      applied_at INTEGER NOT NULL DEFAULT (unixepoch())
-    )
-  `)
-
-  const applied = new Set(
-    db.prepare('SELECT id FROM schema_migrations').all().map((row: any) => row.id)
-  )
-
-  for (const migration of [...migrations, ...extraMigrations]) {
-    if (applied.has(migration.id)) continue
-    db.transaction(() => {
-      migration.up(db)
-      db.prepare('INSERT OR IGNORE INTO schema_migrations (id) VALUES (?)').run(migration.id)
-    })()
-  }
-}

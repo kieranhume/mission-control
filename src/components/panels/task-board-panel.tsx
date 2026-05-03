@@ -558,6 +558,8 @@ export function TaskBoardPanel() {
   // Group tasks by status, overriding for awaiting_owner detection
   const tasksByStatus = statusColumns.reduce((acc, column) => {
     acc[column.key] = tasks.filter(task => {
+      // MVP Brief-Agent: hide recurring templates from kanban (config, not work)
+      if (task.metadata?.recurrence?.enabled === true) return false
       const effectiveStatus = detectAwaitingOwner(task) ? 'awaiting_owner' : task.status
       return effectiveStatus === column.key
     })

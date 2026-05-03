@@ -7,9 +7,11 @@
  * date-suffixed titles.
  */
 
+import { readFileSync } from 'node:fs'
 import { getDatabase, db_helpers } from './db'
 import { logger } from './logger'
 import { isCronDue } from './schedule-parser'
+import { resolveWithin } from './paths'
 
 export interface RecurrenceMetadata {
   cron_expr: string
@@ -61,6 +63,24 @@ export async function spawnRecurringTasks(): Promise<{ ok: boolean; message: str
 
     for (const template of templates) {
       const metadata = template.metadata ? JSON.parse(template.metadata) : {}
+
+      // Brief-Agent MVP: if metadata.brief_path is set, read system prompt
+      // from the vault file instead of inlining template.description.
+      let childDescription = template.description
+      const briefPath = typeof metadata.brief_path === 'string' ? metadata.brief_path.trim() : null
+      if (briefPath) {
+        try {
+          const vaultRoot = process.env.OBSIDIAN_VAULT_PATH
+          if (!vaultRoot) {
+            logger.warn({ templateId: template.id, briefPath }, 'brief_path set but OBSIDIAN_VAULT_PATH unset; falling back to template.description')
+          } else {
+            const safe = resolveWithin(vaultRoot, briefPath)
+            childDescription = readFileSync(safe, 'utf8')
+          }
+        } catch (err: any) {
+          logger.error({ err: err?.message ?? String(err), templateId: template.id, briefPath }, 'brief_path read failed; falling back to template.description')
+        }
+      }
       const recurrence = metadata.recurrence as RecurrenceMetadata | undefined
       if (!recurrence?.cron_expr || !recurrence.enabled) continue
 
@@ -109,7 +129,7 @@ export async function spawnRecurringTasks(): Promise<{ ok: boolean; message: str
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           childTitle,
-          template.description,
+          childDescription,
           template.assigned_to ? 'assigned' : 'inbox',
           template.priority,
           template.project_id,
