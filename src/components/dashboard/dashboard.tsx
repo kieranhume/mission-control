@@ -42,7 +42,6 @@ export function Dashboard() {
   const [dbStats, setDbStats] = useState<DbStats | null>(null)
   const [claudeStats, setClaudeStats] = useState<ClaudeStats | null>(null)
   const [githubStats, setGithubStats] = useState<any>(null)
-  const [hermesCronJobCount, setHermesCronJobCount] = useState(0)
   const [loading, setLoading] = useState({
     system: true,
     sessions: true,
@@ -101,15 +100,6 @@ export function Dashboard() {
           .finally(() => setLoading(prev => ({ ...prev, github: false })))
       )
 
-      requests.push(
-        fetch('/api/hermes')
-          .then(async (res) => {
-            if (!res.ok) return
-            const data = await res.json()
-            if (data?.cronJobCount != null) setHermesCronJobCount(data.cronJobCount)
-          })
-          .catch(() => {})
-      )
     } else {
       setLoading(prev => ({ ...prev, claude: false, github: false }))
     }
@@ -140,11 +130,9 @@ export function Dashboard() {
 
   const claudeLocalSessions = sessions.filter((s) => s.kind === 'claude-code')
   const codexLocalSessions = sessions.filter((s) => s.kind === 'codex-cli')
-  const hermesLocalSessions = sessions.filter((s) => s.kind === 'hermes')
   const ollamaLocalSessions = sessions.filter((s) => s.kind === 'ollama')
   const claudeActive = claudeLocalSessions.filter((s) => s.active).length
   const codexActive = codexLocalSessions.filter((s) => s.active).length
-  const hermesActive = hermesLocalSessions.filter((s) => s.active).length
 
   const runningTasks = dbStats?.tasks.byStatus?.in_progress ?? tasks.filter((t) => t.status === 'in_progress').length
   const inboxCount = dbStats?.tasks.byStatus?.inbox ?? 0
@@ -169,9 +157,6 @@ export function Dashboard() {
     ? { value: 'Loading...', status: 'warn' as const }
     : getProviderHealth(ollamaActive, ollamaLocalSessions.length)
 
-  const hermesHealth = isSessionsLoading
-    ? { value: 'Loading...', status: 'warn' as const }
-    : getProviderHealth(hermesActive, hermesLocalSessions.length)
 
   const mcHealth = isSystemLoading
     ? { value: 'Loading...', status: 'warn' as const }
@@ -190,7 +175,7 @@ export function Dashboard() {
           id: `local-session-${session.id}-${ts}`,
           timestamp: ts,
           level: 'info',
-          source: session.kind === 'codex-cli' ? 'codex-local' : session.kind === 'hermes' ? 'hermes-local' : 'claude-local',
+          source: session.kind === 'codex-cli' ? 'codex-local' : session.kind === 'ollama' ? 'ollama-local' : 'claude-local',
           message: lastPrompt
             ? `Prompt: ${lastPrompt}`
             : `${session.active ? 'Active' : 'Idle'} session: ${session.key || session.id}`,
@@ -238,10 +223,8 @@ export function Dashboard() {
     onlineAgents,
     claudeActive,
     codexActive,
-    hermesActive,
     claudeLocalSessions,
     codexLocalSessions,
-    hermesLocalSessions,
     runningTasks,
     inboxCount,
     assignedCount,
@@ -253,7 +236,8 @@ export function Dashboard() {
     localOsStatus,
     claudeHealth,
     codexHealth,
-    hermesHealth,
+    ollamaActive,
+    ollamaLocalSessions,
     ollamaHealth,
     mcHealth,
     gatewayHealthStatus,
@@ -261,7 +245,6 @@ export function Dashboard() {
     isSessionsLoading,
     isClaudeLoading,
     isGithubLoading,
-    hermesCronJobCount,
     subscriptionLabel,
     subscriptionPrice,
   }

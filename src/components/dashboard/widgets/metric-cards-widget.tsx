@@ -20,13 +20,10 @@ export function MetricCardsWidget({ data }: { data: DashboardData }) {
     isSessionsLoading,
     isSystemLoading,
     claudeActive,
-    codexActive,
-    hermesActive,
     claudeStats,
     claudeLocalSessions,
-    codexLocalSessions,
-    hermesLocalSessions,
-    hermesCronJobCount,
+    ollamaActive,
+    ollamaLocalSessions,
     systemLoad,
     memPct,
     diskPct,
@@ -45,7 +42,7 @@ export function MetricCardsWidget({ data }: { data: DashboardData }) {
 
   if (isLocal) {
     return (
-      <section className="grid grid-cols-2 xl:grid-cols-6 gap-3">
+      <section className="grid grid-cols-2 xl:grid-cols-5 gap-3">
         <MetricCard
           label="Claude"
           value={isClaudeLoading ? '...' : claudeActive}
@@ -55,20 +52,12 @@ export function MetricCardsWidget({ data }: { data: DashboardData }) {
           color="blue"
         />
         <MetricCard
-          label="Codex"
-          value={isSessionsLoading ? '...' : codexActive}
-          total={isSessionsLoading ? undefined : codexLocalSessions.length}
+          label="Ollama"
+          value={isSessionsLoading ? '...' : ollamaActive}
+          total={isSessionsLoading ? undefined : ollamaLocalSessions.length}
           subtitle="active sessions"
           icon={<SessionIcon />}
           color="green"
-        />
-        <MetricCard
-          label="Hermes"
-          value={isSessionsLoading ? '...' : hermesActive}
-          total={isSessionsLoading ? undefined : hermesLocalSessions.length}
-          subtitle={hermesCronJobCount > 0 ? `${hermesActive} active · ${hermesCronJobCount} cron` : 'active sessions'}
-          icon={<SessionIcon />}
-          color="purple"
         />
         <MetricCard
           label="System Load"
