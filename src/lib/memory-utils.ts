@@ -152,6 +152,10 @@ export async function scanMemoryFiles(
     for (const entry of entries) {
       if (results.length >= maxFiles) break
       if (entry.isSymbolicLink()) continue
+      // Skip hidden directories (.git, .obsidian, .vscode, etc.). When memoryDir
+      // points at an Obsidian vault, .git alone has ~1800 files that swamp the
+      // walk and time out the request before any real content gets scanned.
+      if (entry.name.startsWith('.')) continue
       const fullPath = join(dir, entry.name)
       if (entry.isDirectory()) {
         await walk(fullPath)
@@ -211,32 +215,38 @@ export async function buildLinkGraph(baseDir: string, existingFiles?: MemoryFile
     }
   }
 
-  // First pass: extract links from each file
-  for (const f of files) {
-    try {
-      const content = await readFile(join(baseDir, f.path), 'utf-8')
-      const wikiLinks = extractWikiLinks(content)
-      const schema = extractSchema(content)
-      const outgoing: string[] = []
+  // First pass: extract links from each file. Bounded-concurrency parallel
+  // reads — sequential await across hundreds of files turns a sub-second
+  // I/O budget into 30+s and times out the request.
+  const CONCURRENCY = 32
+  for (let i = 0; i < files.length; i += CONCURRENCY) {
+    const batch = files.slice(i, i + CONCURRENCY)
+    await Promise.all(batch.map(async (f) => {
+      try {
+        const content = await readFile(join(baseDir, f.path), 'utf-8')
+        const wikiLinks = extractWikiLinks(content)
+        const schema = extractSchema(content)
+        const outgoing: string[] = []
 
-      for (const link of wikiLinks) {
-        const resolved = stemToPath.get(link.target)
-        if (resolved && resolved !== f.path) {
-          outgoing.push(resolved)
+        for (const link of wikiLinks) {
+          const resolved = stemToPath.get(link.target)
+          if (resolved && resolved !== f.path) {
+            outgoing.push(resolved)
+          }
         }
-      }
 
-      nodes[f.path] = {
-        path: f.path,
-        name: f.name,
-        outgoing: [...new Set(outgoing)],
-        incoming: [],
-        wikiLinks,
-        schema,
+        nodes[f.path] = {
+          path: f.path,
+          name: f.name,
+          outgoing: [...new Set(outgoing)],
+          incoming: [],
+          wikiLinks,
+          schema,
+        }
+      } catch {
+        // skip unreadable files
       }
-    } catch {
-      // skip unreadable files
-    }
+    }))
   }
 
   // Second pass: compute incoming links
