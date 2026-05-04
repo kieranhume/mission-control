@@ -1332,7 +1332,7 @@ function TaskDetailModal({
       await fetchReviews()
       onUpdate()
     } catch (error) {
-      setReviewError('Failed to submit review')
+      setReviewError(error instanceof Error ? error.message : 'Failed to submit review')
     }
   }
 
