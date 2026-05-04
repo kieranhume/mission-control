@@ -185,10 +185,15 @@ export async function scanMemoryFiles(
 export interface LinkGraphNode {
   path: string
   name: string
+  size: number         // bytes — from stat, populated during buildLinkGraph
+  modified: number     // mtime ms — from stat, populated during buildLinkGraph
   outgoing: string[]   // paths this file links to
   incoming: string[]   // paths that link to this file
   wikiLinks: WikiLink[]
   schema: SchemaBlock | null
+  schemaValid: boolean    // result of validateSchema — computed once during buildLinkGraph
+  schemaErrors: string[]  // validation errors for files that have a _schema block
+  hasDescription: boolean // true if frontmatter has a description: field
 }
 
 export interface LinkGraph {
@@ -226,6 +231,9 @@ export async function buildLinkGraph(baseDir: string, existingFiles?: MemoryFile
         const content = await readFile(join(baseDir, f.path), 'utf-8')
         const wikiLinks = extractWikiLinks(content)
         const schema = extractSchema(content)
+        const validation = validateSchema(content)
+        const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
+        const hasDescription = fmMatch ? /description:\s*\S/.test(fmMatch[1]) : false
         const outgoing: string[] = []
 
         for (const link of wikiLinks) {
@@ -238,10 +246,15 @@ export async function buildLinkGraph(baseDir: string, existingFiles?: MemoryFile
         nodes[f.path] = {
           path: f.path,
           name: f.name,
+          size: f.size,
+          modified: f.modified,
           outgoing: [...new Set(outgoing)],
           incoming: [],
           wikiLinks,
           schema,
+          schemaValid: validation.valid,
+          schemaErrors: validation.errors,
+          hasDescription,
         }
       } catch {
         // skip unreadable files
@@ -291,26 +304,26 @@ export interface HealthReport {
 }
 
 export async function runHealthDiagnostics(baseDir: string): Promise<HealthReport> {
-  const files = await scanMemoryFiles(baseDir, { extensions: ['.md'] })
-  const graph = await buildLinkGraph(baseDir, files)
+  // Single pass: buildLinkGraph scans + reads every file once (batched 32-wide).
+  // All per-file metadata (size, modified, schema, hasDescription) is populated
+  // on the nodes during that read so no category below needs to re-read files.
+  const graph = await buildLinkGraph(baseDir)
+  const nodes = Object.values(graph.nodes)
+  const totalFiles = graph.totalFiles
 
   const categories: HealthCategory[] = []
 
-  // 1. Schema compliance
+  // 1. Schema compliance — use schemaValid/schemaErrors already computed in buildLinkGraph
   {
     let filesWithSchema = 0
     let validSchemas = 0
     const schemaIssues: string[] = []
-    for (const f of files) {
-      try {
-        const content = await readFile(join(baseDir, f.path), 'utf-8')
-        const result = validateSchema(content)
-        if (result.schema) {
-          filesWithSchema++
-          if (result.valid) validSchemas++
-          else schemaIssues.push(`${f.path}: ${result.errors.join(', ')}`)
-        }
-      } catch { /* skip */ }
+    for (const node of nodes) {
+      if (node.schema) {
+        filesWithSchema++
+        if (node.schemaValid) validSchemas++
+        else schemaIssues.push(`${node.path}: ${node.schemaErrors.join(', ')}`)
+      }
     }
     const score = filesWithSchema === 0 ? 100 : Math.round((validSchemas / filesWithSchema) * 100)
     categories.push({
@@ -328,7 +341,6 @@ export async function runHealthDiagnostics(baseDir: string): Promise<HealthRepor
 
   // 2. Connectivity (wiki-link health)
   {
-    const totalFiles = graph.totalFiles
     const orphanCount = graph.orphans.length
     const connectedRatio = totalFiles > 0 ? (totalFiles - orphanCount) / totalFiles : 1
     const score = Math.round(connectedRatio * 100)
@@ -348,21 +360,21 @@ export async function runHealthDiagnostics(baseDir: string): Promise<HealthRepor
     })
   }
 
-  // 3. Broken links
+  // 3. Broken links — build stemToPath from graph nodes (no extra scan)
   {
     const brokenLinks: string[] = []
     const stemToPath = new Map<string, string>()
-    for (const f of files) {
-      stemToPath.set(basename(f.path, extname(f.path)), f.path)
+    for (const node of nodes) {
+      stemToPath.set(basename(node.path, extname(node.path)), node.path)
     }
-    for (const node of Object.values(graph.nodes)) {
+    for (const node of nodes) {
       for (const link of node.wikiLinks) {
         if (!stemToPath.has(link.target)) {
           brokenLinks.push(`${node.path}:${link.line} -> [[${link.target}]]`)
         }
       }
     }
-    const totalLinks = Object.values(graph.nodes).reduce((s, n) => s + n.wikiLinks.length, 0)
+    const totalLinks = nodes.reduce((s, n) => s + n.wikiLinks.length, 0)
     const brokenRatio = totalLinks > 0 ? brokenLinks.length / totalLinks : 0
     const score = Math.round((1 - brokenRatio) * 100)
     categories.push({
@@ -376,39 +388,39 @@ export async function runHealthDiagnostics(baseDir: string): Promise<HealthRepor
     })
   }
 
-  // 4. Staleness (files not modified in 30+ days)
+  // 4. Staleness (files not modified in 30+ days) — uses node.modified from buildLinkGraph
   {
     const now = Date.now()
     const staleThreshold = 30 * 24 * 60 * 60 * 1000
-    const staleFiles = files.filter((f) => now - f.modified > staleThreshold)
-    const staleRatio = files.length > 0 ? staleFiles.length / files.length : 0
+    const staleCount = nodes.filter((n) => now - n.modified > staleThreshold).length
+    const staleRatio = totalFiles > 0 ? staleCount / totalFiles : 0
     const score = Math.round((1 - staleRatio * 0.5) * 100) // half-weight staleness
     categories.push({
       name: 'Freshness',
       status: score >= 80 ? 'healthy' : score >= 60 ? 'warning' : 'critical',
       score,
-      issues: staleFiles.length > 0
-        ? [`${staleFiles.length} file(s) not updated in 30+ days`]
+      issues: staleCount > 0
+        ? [`${staleCount} file(s) not updated in 30+ days`]
         : [],
-      suggestions: staleFiles.length > 0
+      suggestions: staleCount > 0
         ? ['Review stale files for relevance', 'Run a /reweave pass to update older notes']
         : [],
     })
   }
 
-  // 5. File size distribution (too large = not atomic)
+  // 5. File size distribution (too large = not atomic) — uses node.size from buildLinkGraph
   {
-    const largeFiles = files.filter((f) => f.size > 10_000) // >10KB
-    const largeRatio = files.length > 0 ? largeFiles.length / files.length : 0
+    const largeCount = nodes.filter((n) => n.size > 10_000).length // >10KB
+    const largeRatio = totalFiles > 0 ? largeCount / totalFiles : 0
     const score = Math.round((1 - largeRatio * 0.8) * 100)
     categories.push({
       name: 'Atomicity',
       status: score >= 80 ? 'healthy' : score >= 50 ? 'warning' : 'critical',
       score,
-      issues: largeFiles.length > 0
-        ? [`${largeFiles.length} file(s) exceed 10KB — consider splitting into atomic notes`]
+      issues: largeCount > 0
+        ? [`${largeCount} file(s) exceed 10KB — consider splitting into atomic notes`]
         : [],
-      suggestions: largeFiles.length > 0
+      suggestions: largeCount > 0
         ? ['Break large files into focused atomic notes with wiki-links between them']
         : [],
     })
@@ -417,17 +429,17 @@ export async function runHealthDiagnostics(baseDir: string): Promise<HealthRepor
   // 6. Naming conventions
   {
     const badNames: string[] = []
-    for (const f of files) {
-      const stem = basename(f.path, extname(f.path))
+    for (const node of nodes) {
+      const stem = basename(node.path, extname(node.path))
       if (/[A-Z]/.test(stem) && /\s/.test(stem)) {
-        badNames.push(f.path)
+        badNames.push(node.path)
       }
       if (/^(untitled|new-file|document|temp)/i.test(stem)) {
-        badNames.push(f.path)
+        badNames.push(node.path)
       }
     }
     const unique = [...new Set(badNames)]
-    const score = files.length > 0 ? Math.round(((files.length - unique.length) / files.length) * 100) : 100
+    const score = totalFiles > 0 ? Math.round(((totalFiles - unique.length) / totalFiles) * 100) : 100
     categories.push({
       name: 'Naming Conventions',
       status: score >= 90 ? 'healthy' : score >= 70 ? 'warning' : 'critical',
@@ -441,15 +453,15 @@ export async function runHealthDiagnostics(baseDir: string): Promise<HealthRepor
 
   // 7. Directory structure
   {
-    const rootFiles = files.filter((f) => !f.path.includes('/') && !f.path.includes('\\'))
-    const rootRatio = files.length > 0 ? rootFiles.length / files.length : 0
+    const rootCount = nodes.filter((n) => !n.path.includes('/') && !n.path.includes('\\')).length
+    const rootRatio = totalFiles > 0 ? rootCount / totalFiles : 0
     const score = rootRatio > 0.5 ? Math.round((1 - rootRatio) * 100) : 100
     categories.push({
       name: 'Organization',
       status: score >= 70 ? 'healthy' : score >= 40 ? 'warning' : 'critical',
       score,
       issues: rootRatio > 0.5
-        ? [`${rootFiles.length}/${files.length} files at root level — organize into directories`]
+        ? [`${rootCount}/${totalFiles} files at root level — organize into directories`]
         : [],
       suggestions: rootRatio > 0.5
         ? ['Create topic directories to group related notes', 'Use MOC files as directory indexes']
@@ -457,25 +469,16 @@ export async function runHealthDiagnostics(baseDir: string): Promise<HealthRepor
     })
   }
 
-  // 8. Description quality (frontmatter description field)
+  // 8. Description quality — uses node.hasDescription computed in buildLinkGraph
   {
-    let withDescription = 0
-    for (const f of files) {
-      try {
-        const content = await readFile(join(baseDir, f.path), 'utf-8')
-        const fmMatch = content.match(/^---\n([\s\S]*?)\n---/)
-        if (fmMatch && /description:\s*.+/.test(fmMatch[1])) {
-          withDescription++
-        }
-      } catch { /* skip */ }
-    }
-    const score = files.length > 0 ? Math.round((withDescription / files.length) * 100) : 100
+    const withDescription = nodes.filter((n) => n.hasDescription).length
+    const score = totalFiles > 0 ? Math.round((withDescription / totalFiles) * 100) : 100
     categories.push({
       name: 'Description Quality',
       status: score >= 60 ? 'healthy' : score >= 30 ? 'warning' : 'critical',
       score,
       issues: score < 60
-        ? [`Only ${withDescription}/${files.length} files have description fields`]
+        ? [`Only ${withDescription}/${totalFiles} files have description fields`]
         : [],
       suggestions: score < 60
         ? ['Add description: field to frontmatter for better discoverability']
