@@ -1,8 +1,19 @@
 import { getDatabase, db_helpers } from './db'
-import { runOpenClaw } from './command'
+import { runOpenClaw, isOpenClawAvailable } from './command'
 import { callOpenClawGateway } from './openclaw-gateway'
 import { eventBus } from './event-bus'
 import { logger } from './logger'
+
+// Log the missing-openclaw warning at most once per MC process. The
+// scheduler hits these flows every 60s; we don't want a log entry per tick.
+let _loggedMissingOpenClaw = false
+function _skipReason(flow: string): { ok: boolean; message: string } {
+  if (!_loggedMissingOpenClaw) {
+    logger.warn({ flow, openclawBin: 'openclaw' }, 'OpenClaw not installed; skipping flow. Tasks remain in their original status for polling workers (claude-premium etc.) to handle.')
+    _loggedMissingOpenClaw = true
+  }
+  return { ok: true, message: `${flow} skipped — openclaw not installed` }
+}
 
 interface DispatchableTask {
   id: number
@@ -230,6 +241,7 @@ function parseReviewVerdict(text: string): { status: 'approved' | 'rejected'; no
  * Uses an agent to evaluate the task resolution, then approves or rejects.
  */
 export async function runAegisReviews(): Promise<{ ok: boolean; message: string }> {
+  if (!isOpenClawAvailable()) return _skipReason('aegis_review')
   const db = getDatabase()
 
   const tasks = db.prepare(`
@@ -297,8 +309,9 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
       `).run(task.id, verdict.status, verdict.notes, task.workspace_id)
 
       if (verdict.status === 'approved') {
-        db.prepare('UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?')
-          .run('done', Math.floor(Date.now() / 1000), task.id)
+        const _now = Math.floor(Date.now() / 1000)
+        db.prepare('UPDATE tasks SET status = ?, updated_at = ?, completed_at = COALESCE(completed_at, ?) WHERE id = ?')
+          .run('done', _now, _now, task.id)
 
         eventBus.broadcast('task.status_changed', {
           id: task.id,
@@ -364,6 +377,7 @@ export async function runAegisReviews(): Promise<{ ok: boolean; message: string 
 }
 
 export async function dispatchAssignedTasks(): Promise<{ ok: boolean; message: string }> {
+  if (!isOpenClawAvailable()) return _skipReason('task_dispatch')
   const db = getDatabase()
 
   const tasks = db.prepare(`
