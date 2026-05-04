@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
 
     // Auto-advance task based on review outcome
     if (status === 'approved') {
-      db.prepare('UPDATE tasks SET status = ?, updated_at = unixepoch() WHERE id = ? AND workspace_id = ?')
+      db.prepare('UPDATE tasks SET status = ?, updated_at = unixepoch(), completed_at = COALESCE(completed_at, unixepoch()) WHERE id = ? AND workspace_id = ?')
         .run('done', taskId, workspaceId)
       eventBus.broadcast('task.status_changed', {
         id: taskId,
