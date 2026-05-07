@@ -28,6 +28,13 @@ function formatDateSuffix(): string {
   return `${months[now.getMonth()]} ${String(now.getDate()).padStart(2, '0')}`
 }
 
+export function isRecurringTemplate(task: { metadata?: unknown }): boolean {
+  const m = task.metadata
+  if (!m || typeof m !== 'object') return false
+  const r = (m as Record<string, unknown>).recurrence as Record<string, unknown> | undefined
+  return r?.enabled === true
+}
+
 export async function spawnRecurringTasks(): Promise<{ ok: boolean; message: string }> {
   try {
     const db = getDatabase()
