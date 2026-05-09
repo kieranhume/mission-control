@@ -9,7 +9,7 @@ import { SessionKindAvatar, SessionKindPill } from './session-kind-brand'
 
 const log = createClientLogger('ConversationList')
 
-type SessionKind = 'claude-code' | 'codex-cli' | 'hermes' | 'opencode' | 'gateway'
+type SessionKind = 'claude-code' | 'gateway'
 
 type SessionRecord = {
   id: string
@@ -265,18 +265,12 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
           const updatedAt = lastActivityMs > 1_000_000_000_000
             ? Math.floor(lastActivityMs / 1000)
             : lastActivityMs
-          const sessionKind: SessionKind = s.kind === 'claude-code' || s.kind === 'codex-cli' || s.kind === 'hermes' || s.kind === 'opencode'
+          const sessionKind: SessionKind = s.kind === 'claude-code'
             ? s.kind
             : 'gateway'
-          const kindLabel = sessionKind === 'codex-cli'
-            ? 'Codex'
-            : sessionKind === 'claude-code'
-              ? 'Claude'
-              : sessionKind === 'hermes'
-                ? 'Hermes'
-                : sessionKind === 'opencode'
-                  ? 'OpenCode'
-                : 'Gateway'
+          const kindLabel = sessionKind === 'claude-code'
+            ? 'Claude'
+            : 'Gateway'
           const prefKey = `${sessionKind}:${s.id}`
           const pref = prefs[prefKey] || {}
           const defaultName = s.source === 'local'
@@ -352,9 +346,12 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
     )
   })
 
-  const allSessions = filteredConversations.filter((c) => c.source === 'session')
-  const activeRows = allSessions.filter((c) => c.session?.active)
-  const recentRows = allSessions.filter((c) => !c.session?.active)
+  const gatewayRows = filteredConversations.filter((c) => c.source === 'session' && c.session?.sessionKind === 'gateway')
+  const activeGatewayRows = gatewayRows.filter((c) => c.session?.active)
+  const inactiveGatewayRows = gatewayRows.filter((c) => !c.session?.active)
+  const localRows = filteredConversations.filter((c) => c.source === 'session' && c.session?.sessionKind === 'claude-code')
+  const activeLocalRows = localRows.filter((c) => c.session?.active)
+  const inactiveLocalRows = localRows.filter((c) => !c.session?.active)
 
   function renderConversationItem(conv: Conversation) {
     const displayName = conv.name || conv.id.replace('agent_', '')
@@ -518,27 +515,38 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
           </div>
         ) : (
           <>
-            {activeRows.length > 0 && (
+            {activeGatewayRows.length > 0 && (
               <div>
-                <div className="px-3 pt-2.5 pb-1 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-green-400/70">
-                    <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-                    Active
-                    <span className="text-green-400/40 font-mono">{activeRows.length}</span>
-                  </div>
+                <div className="px-3 pt-2 py-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-green-400/70">
+                  <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                  Active
                 </div>
-                {activeRows.map(renderConversationItem)}
+                {activeGatewayRows.map(renderConversationItem)}
               </div>
             )}
-            {recentRows.length > 0 && (
+            {activeLocalRows.length > 0 && (
               <div>
-                <div className="px-3 pt-2.5 pb-1 flex items-center justify-between">
-                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/40">
-                    Recent
-                    <span className="ml-1 font-mono">{recentRows.length}</span>
-                  </span>
+                <div className="px-3 pt-2 py-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-green-400/70">
+                  <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                  Active Local
                 </div>
-                {recentRows.map(renderConversationItem)}
+                {activeLocalRows.map(renderConversationItem)}
+              </div>
+            )}
+            {inactiveGatewayRows.length > 0 && (
+              <div>
+                <div className="px-3 pt-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground/40">
+                  Recent
+                </div>
+                {inactiveGatewayRows.map(renderConversationItem)}
+              </div>
+            )}
+            {inactiveLocalRows.length > 0 && (
+              <div>
+                <div className="px-3 pt-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground/40">
+                  Recent Local
+                </div>
+                {inactiveLocalRows.map(renderConversationItem)}
               </div>
             )}
           </>

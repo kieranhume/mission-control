@@ -6,7 +6,6 @@ import { useNavigateToPanel } from '@/lib/navigation'
 import { useSmartPoll } from '@/lib/use-smart-poll'
 import { SignalPill, getLocalOsStatus, getProviderHealth, getMcHealth } from './widget-primitives'
 import { OnboardingChecklistWidget } from './widgets/onboarding-checklist-widget'
-import { EmptyStateLaunchpad } from './empty-state-launchpad'
 import { WidgetGrid } from './widget-grid'
 import type { DbStats, ClaudeStats, LogLike, DashboardData } from './widget-primitives'
 
@@ -43,7 +42,6 @@ export function Dashboard() {
   const [dbStats, setDbStats] = useState<DbStats | null>(null)
   const [claudeStats, setClaudeStats] = useState<ClaudeStats | null>(null)
   const [githubStats, setGithubStats] = useState<any>(null)
-  const [hermesCronJobCount, setHermesCronJobCount] = useState(0)
   const [loading, setLoading] = useState({
     system: true,
     sessions: true,
@@ -102,15 +100,6 @@ export function Dashboard() {
           .finally(() => setLoading(prev => ({ ...prev, github: false })))
       )
 
-      requests.push(
-        fetch('/api/hermes')
-          .then(async (res) => {
-            if (!res.ok) return
-            const data = await res.json()
-            if (data?.cronJobCount != null) setHermesCronJobCount(data.cronJobCount)
-          })
-          .catch(() => {})
-      )
     } else {
       setLoading(prev => ({ ...prev, claude: false, github: false }))
     }
@@ -141,10 +130,9 @@ export function Dashboard() {
 
   const claudeLocalSessions = sessions.filter((s) => s.kind === 'claude-code')
   const codexLocalSessions = sessions.filter((s) => s.kind === 'codex-cli')
-  const hermesLocalSessions = sessions.filter((s) => s.kind === 'hermes')
+  const ollamaLocalSessions = sessions.filter((s) => s.kind === 'ollama')
   const claudeActive = claudeLocalSessions.filter((s) => s.active).length
   const codexActive = codexLocalSessions.filter((s) => s.active).length
-  const hermesActive = hermesLocalSessions.filter((s) => s.active).length
 
   const runningTasks = dbStats?.tasks.byStatus?.in_progress ?? tasks.filter((t) => t.status === 'in_progress').length
   const inboxCount = dbStats?.tasks.byStatus?.inbox ?? 0
@@ -164,10 +152,11 @@ export function Dashboard() {
   const codexHealth = isSessionsLoading
     ? { value: 'Loading...', status: 'warn' as const }
     : getProviderHealth(codexActive, codexLocalSessions.length)
-
-  const hermesHealth = isSessionsLoading
+  const ollamaActive = ollamaLocalSessions.filter((s) => s.active).length
+  const ollamaHealth = isSessionsLoading
     ? { value: 'Loading...', status: 'warn' as const }
-    : getProviderHealth(hermesActive, hermesLocalSessions.length)
+    : getProviderHealth(ollamaActive, ollamaLocalSessions.length)
+
 
   const mcHealth = isSystemLoading
     ? { value: 'Loading...', status: 'warn' as const }
@@ -186,7 +175,7 @@ export function Dashboard() {
           id: `local-session-${session.id}-${ts}`,
           timestamp: ts,
           level: 'info',
-          source: session.kind === 'codex-cli' ? 'codex-local' : session.kind === 'hermes' ? 'hermes-local' : 'claude-local',
+          source: session.kind === 'codex-cli' ? 'codex-local' : session.kind === 'ollama' ? 'ollama-local' : 'claude-local',
           message: lastPrompt
             ? `Prompt: ${lastPrompt}`
             : `${session.active ? 'Active' : 'Idle'} session: ${session.key || session.id}`,
@@ -234,10 +223,8 @@ export function Dashboard() {
     onlineAgents,
     claudeActive,
     codexActive,
-    hermesActive,
     claudeLocalSessions,
     codexLocalSessions,
-    hermesLocalSessions,
     runningTasks,
     inboxCount,
     assignedCount,
@@ -249,14 +236,15 @@ export function Dashboard() {
     localOsStatus,
     claudeHealth,
     codexHealth,
-    hermesHealth,
+    ollamaActive,
+    ollamaLocalSessions,
+    ollamaHealth,
     mcHealth,
     gatewayHealthStatus,
     isSystemLoading,
     isSessionsLoading,
     isClaudeLoading,
     isGithubLoading,
-    hermesCronJobCount,
     subscriptionLabel,
     subscriptionPrice,
   }
@@ -264,11 +252,28 @@ export function Dashboard() {
   return (
     <div className="p-5 space-y-4">
       <OnboardingChecklistWidget />
-      <EmptyStateLaunchpad
-        agentCount={dbStats?.agents.total ?? agents.length}
-        taskCount={dbStats?.tasks.total ?? tasks.length}
-        onNavigate={navigateToPanel}
-      />
+      <section className="rounded-xl border border-border bg-card p-4">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="text-2xs uppercase tracking-[0.12em] text-muted-foreground">Overview</div>
+            <h2 className="text-lg font-semibold text-foreground">
+              {isLocal ? 'Local Agent Runtime' : 'Gateway Control Plane'}
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              {isLocal
+                ? 'Unified visibility for Claude & Ollama local sessions, host pressure, and operator continuity.'
+                : 'Gateway-first health, session routing, queue pressure, and incident response signals.'}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 min-w-[280px]">
+            <SignalPill label="Mode" value={isLocal ? 'Local' : 'Gateway'} tone="info" />
+            <SignalPill label="Events" value={`${mergedRecentLogs.length} stream`} tone={recentErrorLogs > 0 ? 'warning' : 'success'} />
+            <SignalPill label="Queue" value={String(backlogCount)} tone={backlogCount > 10 ? 'warning' : 'info'} />
+            <SignalPill label="Errors" value={String(errorCount)} tone={errorCount > 0 ? 'warning' : 'success'} />
+          </div>
+        </div>
+      </section>
+
       <WidgetGrid data={dashboardData} />
     </div>
   )

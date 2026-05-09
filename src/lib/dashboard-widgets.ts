@@ -66,7 +66,7 @@ export const WIDGET_CATALOG: DashboardWidget[] = [
   {
     id: 'runtime-health',
     label: 'Runtime Health',
-    description: 'Local OS, Claude, Codex, and MC core health',
+    description: 'Local OS, Claude, Ollama, and MC core health',
     category: 'health',
     modes: ['local'],
     defaultSize: 'md',

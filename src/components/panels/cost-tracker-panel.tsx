@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { useSmartPoll } from '@/lib/use-smart-poll'
 import { useTranslations } from 'next-intl'
 import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
@@ -108,7 +109,6 @@ export function CostTrackerPanel() {
   const [sessionSort, setSessionSort] = useState<'cost' | 'tokens' | 'requests' | 'recent'>('cost')
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null)
 
-  const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const timeframeToDays = (tf: Timeframe): number => {
     switch (tf) { case 'hour': case 'day': return 1; case 'week': return 7; case 'month': return 30 }
@@ -161,11 +161,8 @@ export function CostTrackerPanel() {
     }
   }, [timeframe, usageStats])
 
-  useEffect(() => { loadData() }, [loadData])
-  useEffect(() => {
-    refreshTimer.current = setInterval(loadData, 30_000)
-    return () => { if (refreshTimer.current) clearInterval(refreshTimer.current) }
-  }, [loadData])
+  // Auto-refresh every 30s; pauses when tab hidden or SSE delivers updates
+  useSmartPoll(loadData, 30000, { pauseWhenSseConnected: true })
   useEffect(() => { if (view === 'sessions') loadSessionCosts() }, [view, loadSessionCosts])
 
   const exportData = async (format: 'json' | 'csv') => {

@@ -88,7 +88,7 @@ function getContextualActions(data: DashboardData): Array<{
   if (isLocal) {
     actions.push({
       label: 'Sessions',
-      desc: 'Claude + Codex + Hermes',
+      desc: 'Claude + Ollama',
       tab: 'sessions',
       icon: <SessionIcon />,
       priority: 30,

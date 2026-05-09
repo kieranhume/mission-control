@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Loader } from '@/components/ui/loader'
 import { useMissionControl } from '@/store'
 import { createClientLogger } from '@/lib/client-logger'
+import { useSmartPoll } from '@/lib/use-smart-poll'
 import { detectProvider } from '@/lib/token-utils'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts'
 
@@ -152,10 +153,12 @@ export function TokenDashboardPanel() {
     }
   }, [selectedTimeframe, usageStats, sessions])
 
-  useEffect(() => {
+  // Bootstrap + auto-refresh every 30s; pauses when tab hidden or SSE delivers updates
+  const loadAll = useCallback(() => {
     loadUsageStats()
     loadTrendData()
   }, [loadUsageStats, loadTrendData])
+  useSmartPoll(loadAll, 30000, { pauseWhenSseConnected: true })
 
   useEffect(() => {
     if (view === 'sessions') loadSessionCosts()

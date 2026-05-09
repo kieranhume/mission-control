@@ -226,6 +226,7 @@ export interface Agent {
   created_at: number;
   updated_at: number;
   config?: string; // JSON string
+  kind?: 'worker' | 'brief-agent';  // 042_agents_kind migration
 }
 
 export interface Comment {

@@ -7,9 +7,11 @@
  * date-suffixed titles.
  */
 
+import { readFile } from 'node:fs/promises'
 import { getDatabase, db_helpers } from './db'
 import { logger } from './logger'
 import { isCronDue } from './schedule-parser'
+import { resolveWithin } from './paths'
 
 export interface RecurrenceMetadata {
   cron_expr: string
@@ -24,6 +26,13 @@ function formatDateSuffix(): string {
   const now = new Date()
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   return `${months[now.getMonth()]} ${String(now.getDate()).padStart(2, '0')}`
+}
+
+export function isRecurringTemplate(task: { metadata?: unknown }): boolean {
+  const m = task.metadata
+  if (!m || typeof m !== 'object') return false
+  const r = (m as Record<string, unknown>).recurrence as Record<string, unknown> | undefined
+  return r?.enabled === true
 }
 
 export async function spawnRecurringTasks(): Promise<{ ok: boolean; message: string }> {
@@ -61,6 +70,7 @@ export async function spawnRecurringTasks(): Promise<{ ok: boolean; message: str
 
     for (const template of templates) {
       const metadata = template.metadata ? JSON.parse(template.metadata) : {}
+
       const recurrence = metadata.recurrence as RecurrenceMetadata | undefined
       if (!recurrence?.cron_expr || !recurrence.enabled) continue
 
@@ -78,6 +88,24 @@ export async function spawnRecurringTasks(): Promise<{ ok: boolean; message: str
         LIMIT 1
       `).get(childTitle, template.workspace_id, template.project_id)
       if (existing) continue
+
+      // Brief-Agent MVP: read system prompt from vault file if metadata.brief_path is set.
+      // Async read AFTER cron-due check so it only runs on actual spawn, not every tick.
+      let childDescription = template.description
+      const briefPath = typeof metadata.brief_path === 'string' ? metadata.brief_path.trim() : null
+      if (briefPath) {
+        try {
+          const vaultRoot = process.env.OBSIDIAN_VAULT_PATH
+          if (!vaultRoot) {
+            logger.warn({ templateId: template.id, briefPath }, 'brief_path set but OBSIDIAN_VAULT_PATH unset; falling back to template.description')
+          } else {
+            const safe = resolveWithin(vaultRoot, briefPath)
+            childDescription = await readFile(safe, 'utf8')
+          }
+        } catch (err: any) {
+          logger.error({ err: err?.message ?? String(err), templateId: template.id, briefPath }, 'brief_path read failed; falling back to template.description')
+        }
+      }
 
       // Spawn child task
       const childMetadata = {
@@ -109,7 +137,7 @@ export async function spawnRecurringTasks(): Promise<{ ok: boolean; message: str
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           childTitle,
-          template.description,
+          childDescription,
           template.assigned_to ? 'assigned' : 'inbox',
           template.priority,
           template.project_id,

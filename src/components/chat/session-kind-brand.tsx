@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 
-type SessionKind = 'claude-code' | 'codex-cli' | 'hermes' | 'opencode' | 'gateway'
+type SessionKind = 'claude-code' | 'gateway'
 
 const SESSION_KIND_META: Record<SessionKind, {
   label: string
@@ -17,25 +17,6 @@ const SESSION_KIND_META: Record<SessionKind, {
     pillClassName: 'bg-primary/15 text-primary/80',
     imageSrc: '/brand/claude-logo.png',
     imageAlt: 'Claude logo',
-  },
-  'codex-cli': {
-    label: 'Codex CLI',
-    shortLabel: 'CX',
-    pillClassName: 'bg-amber-500/15 text-amber-400/80',
-    imageSrc: '/brand/codex-logo.png',
-    imageAlt: 'Codex logo',
-  },
-  hermes: {
-    label: 'Hermes Agent',
-    shortLabel: 'HM',
-    pillClassName: 'bg-cyan-500/15 text-cyan-300/80',
-    imageSrc: '/brand/hermes-logo.png',
-    imageAlt: 'Hermes logo',
-  },
-  opencode: {
-    label: 'OpenCode',
-    shortLabel: 'OC',
-    pillClassName: 'bg-fuchsia-500/15 text-fuchsia-300/80',
   },
   gateway: {
     label: 'Gateway',
