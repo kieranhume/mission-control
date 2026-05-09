@@ -515,27 +515,38 @@ export function ConversationList({ onNewConversation: _onNewConversation }: Conv
           </div>
         ) : (
           <>
-            {activeRows.length > 0 && (
+            {activeGatewayRows.length > 0 && (
               <div>
-                <div className="px-3 pt-2.5 pb-1 flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-green-400/70">
-                    <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-                    Active
-                    <span className="text-green-400/40 font-mono">{activeRows.length}</span>
-                  </div>
+                <div className="px-3 pt-2 py-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-green-400/70">
+                  <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                  Active
                 </div>
-                {activeRows.map(renderConversationItem)}
+                {activeGatewayRows.map(renderConversationItem)}
               </div>
             )}
-            {recentRows.length > 0 && (
+            {activeLocalRows.length > 0 && (
               <div>
-                <div className="px-3 pt-2.5 pb-1 flex items-center justify-between">
-                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/40">
-                    Recent
-                    <span className="ml-1 font-mono">{recentRows.length}</span>
-                  </span>
+                <div className="px-3 pt-2 py-1 flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-green-400/70">
+                  <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                  Active Local
                 </div>
-                {recentRows.map(renderConversationItem)}
+                {activeLocalRows.map(renderConversationItem)}
+              </div>
+            )}
+            {inactiveGatewayRows.length > 0 && (
+              <div>
+                <div className="px-3 pt-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground/40">
+                  Recent
+                </div>
+                {inactiveGatewayRows.map(renderConversationItem)}
+              </div>
+            )}
+            {inactiveLocalRows.length > 0 && (
+              <div>
+                <div className="px-3 pt-2 py-1 text-[10px] uppercase tracking-wider text-muted-foreground/40">
+                  Recent Local
+                </div>
+                {inactiveLocalRows.map(renderConversationItem)}
               </div>
             )}
           </>

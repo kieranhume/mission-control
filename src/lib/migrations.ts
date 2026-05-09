@@ -1440,3 +1440,23 @@ const migrations: Migration[] = [
     }
   }
 ]
+export function runMigrations(db: Database.Database) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      id TEXT PRIMARY KEY,
+      applied_at INTEGER NOT NULL DEFAULT (unixepoch())
+    )
+  `)
+
+  const applied = new Set(
+    db.prepare('SELECT id FROM schema_migrations').all().map((row: any) => row.id)
+  )
+
+  for (const migration of [...migrations, ...extraMigrations]) {
+    if (applied.has(migration.id)) continue
+    db.transaction(() => {
+      migration.up(db)
+      db.prepare('INSERT OR IGNORE INTO schema_migrations (id) VALUES (?)').run(migration.id)
+    })()
+  }
+}

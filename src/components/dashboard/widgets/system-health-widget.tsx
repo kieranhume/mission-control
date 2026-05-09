@@ -12,7 +12,7 @@ export function SystemHealthWidget({ data }: { data: DashboardData }) {
     localOsStatus,
     claudeHealth,
     codexHealth,
-    hermesHealth,
+    ollamaHealth,
     mcHealth,
     errorCount,
     connection,
@@ -84,7 +84,7 @@ export function SystemHealthWidget({ data }: { data: DashboardData }) {
               <HealthRow label="Local OS" value={localOsStatus.value} status={localOsStatus.status} />
               <HealthRow label="Claude Runtime" value={claudeHealth.value} status={claudeHealth.status} />
               <HealthRow label="Codex Runtime" value={codexHealth.value} status={codexHealth.status} />
-              <HealthRow label="Hermes Runtime" value={hermesHealth.value} status={hermesHealth.status} />
+              <HealthRow label="Ollama Runtime" value={ollamaHealth.value} status={ollamaHealth.status} />
               <HealthRow label="MC Core" value={mcHealth.value} status={mcHealth.status} />
             </>
           ) : (
